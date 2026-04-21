@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sales Performance Dashboard · Gauri Joshi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg:      #060B14;
+    --surface: #0D1626;
+    --card:    #111D35;
+    --border:  #1E3A5F;
+    --accent:  #38BDF8;
+    --green:   #34D399;
+    --gold:    #FBBF24;
+    --red:     #F87171;
+    --purple:  #A78BFA;
+    --text:    #E2E8F0;
+    --muted:   #64748B;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(135deg, #060B14 0%, #0D1F3C 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 28px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  .logo {
+    font-family: var(--font-head);
+    font-size: 22px; font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); }
+  .header-meta { font-size: 12px; color: var(--muted); text-align: right; }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(52,211,153,.12); border: 1px solid var(--green);
+    color: var(--green); padding: 4px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 500; margin-top: 4px;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; } 50% { opacity: .3; }
+  }
+
+  /* ── FILTERS ── */
+  .filters {
+    padding: 16px 40px;
+    display: flex; gap: 12px; align-items: center;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .filters label { font-size: 11px; color: var(--muted); }
+  .filters select {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; font-family: var(--font-mono); font-size: 12px;
+    cursor: pointer; outline: none;
+  }
+  .filters select:focus { border-color: var(--accent); }
+
+  /* ── MAIN GRID ── */
+  .container { padding: 32px 40px; }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 32px;
+  }
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative; overflow: hidden;
+    transition: transform .2s, border-color .2s;
+  }
+  .kpi-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .kpi-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: var(--kpi-color, var(--accent));
+  }
+  .kpi-label {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 10px;
+  }
+  .kpi-value {
+    font-family: var(--font-head); font-size: 32px; font-weight: 800;
+    line-height: 1; color: var(--text);
+  }
+  .kpi-delta {
+    font-size: 12px; margin-top: 8px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .up   { color: var(--green); }
+  .down { color: var(--red); }
+  .kpi-icon {
+    position: absolute; right: 20px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 36px; opacity: .08;
+  }
+
+  /* ── CHART GRID ── */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .chart-grid.wide { grid-template-columns: 2fr 1fr; }
+  .chart-full { grid-column: 1 / -1; }
+
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    transition: border-color .2s;
+  }
+  .chart-card:hover { border-color: var(--border); }
+  .chart-title {
+    font-family: var(--font-head);
+    font-size: 15px; font-weight: 700;
+    margin-bottom: 6px; color: var(--text);
+  }
+  .chart-subtitle {
+    font-size: 11px; color: var(--muted); margin-bottom: 20px;
+  }
+  canvas { max-height: 280px; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    background: var(--surface); color: var(--muted);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    padding: 10px 14px; text-align: left; font-weight: 500;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background .15s;
+  }
+  tbody tr:hover { background: rgba(56,189,248,.05); }
+  tbody td { padding: 12px 14px; color: var(--text); }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px; border-radius: 20px;
+    font-size: 10px; font-weight: 500;
+  }
+  .tag-green { background: rgba(52,211,153,.15); color: var(--green); }
+  .tag-red   { background: rgba(248,113,113,.15); color: var(--red); }
+  .tag-gold  { background: rgba(251,191,36,.15);  color: var(--gold); }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center; padding: 24px;
+    font-size: 11px; color: var(--muted);
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+
+  @media (max-width: 768px) {
+    header, .filters, .container { padding-left: 16px; padding-right: 16px; }
+    .chart-grid, .chart-grid.wide { grid-template-columns: 1fr; }
+    .kpi-value { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div>
+    <div class="logo">Sales<span>Pulse</span></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px;">Performance Intelligence Dashboard</div>
+  </div>
+  <div class="header-meta">
+    <div>Gauri Joshi · Data Analyst</div>
+    <div class="live-badge"><span class="live-dot"></span> Live Data</div>
+  </div>
+</header>
+
+<!-- FILTERS -->
+<div class="filters">
+  <label>Year</label>
+  <select id="filterYear" onchange="applyFilters()">
+    <option value="all">All Years</option>
+    <option value="2023">2023</option>
+    <option value="2024">2024</option>
+  </select>
+  <label>Region</label>
+  <select id="filterRegion" onchange="applyFilters()">
+    <option value="all">All Regions</option>
+    <option>North</option><option>South</option>
+    <option>East</option><option>West</option><option>Central</option>
+  </select>
+  <label>Category</label>
+  <select id="filterCategory" onchange="applyFilters()">
+    <option value="all">All Categories</option>
+    <option>Software</option><option>Analytics</option><option>Cloud</option>
+    <option>Integration</option><option>Reporting</option><option>ETL</option>
+    <option>AI/ML</option><option>Security</option><option>Collaboration</option><option>Mobile</option>
+  </select>
+</div>
+
+<!-- MAIN -->
+<div class="container">
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card" style="--kpi-color:var(--accent)">
+      <div class="kpi-label">Total Revenue</div>
+      <div class="kpi-value" id="kpiRevenue">$4.2M</div>
+      <div class="kpi-delta up">▲ 18.4% vs last year</div>
+      <div class="kpi-icon">💰</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--green)">
+      <div class="kpi-label">Total Profit</div>
+      <div class="kpi-value" id="kpiProfit">$1.9M</div>
+      <div class="kpi-delta up">▲ 21.2% margin</div>
+      <div class="kpi-icon">📈</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--gold)">
+      <div class="kpi-label">Avg Deal Size</div>
+      <div class="kpi-value" id="kpiDeal">$2.1K</div>
+      <div class="kpi-delta up">▲ 6.7% vs target</div>
+      <div class="kpi-icon">🎯</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--red)">
+      <div class="kpi-label">Avg Discount</div>
+      <div class="kpi-value" id="kpiDiscount">6.3%</div>
+      <div class="kpi-delta down">▼ −1.2pp QoQ</div>
+      <div class="kpi-icon">🏷️</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--purple)">
+      <div class="kpi-label">Total Orders</div>
+      <div class="kpi-value" id="kpiOrders">2,000</div>
+      <div class="kpi-delta up">▲ 12.5% YoY</div>
+      <div class="kpi-icon">🛒</div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Revenue Trend (wide) + Donut -->
+  <div class="chart-grid wide" style="margin-bottom:20px">
+    <div class="chart-card">
+      <div class="chart-title">Monthly Revenue vs Target</div>
+      <div class="chart-subtitle">Actual revenue tracked against monthly targets across all regions</div>
+      <canvas id="trendChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Revenue by Category</div>
+      <div class="chart-subtitle">Contribution of each product line</div>
+      <canvas id="donutChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ROW 2: Regional + Rep Leaderboard -->
+  <div class="chart-grid" style="margin-bottom:20px">
+    <div class="chart-card">
+      <div class="chart-title">Regional Performance</div>
+      <div class="chart-subtitle">Revenue by region with profit overlay</div>
+      <canvas id="regionChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top Products</div>
+      <div class="chart-subtitle">Revenue contribution — top 6 SKUs</div>
+      <canvas id="productChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ROW 3: Conversion Funnel + QoQ -->
+  <div class="chart-grid" style="margin-bottom:20px">
+    <div class="chart-card">
+      <div class="chart-title">Quarter-over-Quarter Growth</div>
+      <div class="chart-subtitle">Revenue growth % per quarter</div>
+      <canvas id="qoqChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Discount vs Margin Analysis</div>
+      <div class="chart-subtitle">Higher discounts correlate with margin compression</div>
+      <canvas id="discountChart"></canvas>
+    </div>
+  </div>
+
+  <!-- SALES REP TABLE -->
+  <div class="chart-card">
+    <div class="chart-title">Sales Rep Leaderboard</div>
+    <div class="chart-subtitle">Performance ranking by revenue — updated in real time</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th><th>Rep Name</th><th>Region</th>
+            <th>Revenue</th><th>Orders</th><th>Avg Deal</th>
+            <th>Margin</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="repTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<footer>Sales Performance Dashboard · Built by Gauri Joshi · Tools: HTML · CSS · JavaScript · Chart.js</footer>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun",
+                "Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const rawData = {
+  monthly: {
+    labels: MONTHS.map(m => m+" '23").concat(MONTHS.map(m => m+" '24")),
+    actual:  [142000,128000,165000,158000,172000,190000,
+              182000,175000,210000,225000,195000,240000,
+              155000,142000,178000,170000,185000,205000,
+              198000,188000,228000,245000,215000,260000],
+    target:  [150000,145000,160000,155000,170000,185000,
+              185000,180000,200000,215000,200000,230000,
+              160000,150000,175000,170000,180000,200000,
+              200000,190000,220000,240000,210000,255000]
+  },
+  regions: {
+    labels:  ["North","West","South","East","Central"],
+    revenue: [1120000, 980000, 840000, 780000, 280000],
+    profit:  [490000,  420000, 350000, 310000, 110000]
+  },
+  categories: {
+    labels: ["Software","AI/ML","Analytics","Cloud","ETL","Integration","Reporting","Security","Collaboration","Mobile"],
+    data:   [620000,495000,375000,300000,240000,270000,135000,150000,105000,75000]
+  },
+  products: {
+    labels:  ["Enterprise Suite","InsightML","Analytics Pro","Data Bridge","PipelineX","Cloud Connector"],
+    revenue: [580000, 462000, 373000, 298000, 265000, 218000]
+  },
+  qoq: {
+    labels:  ["Q1 '23","Q2 '23","Q3 '23","Q4 '23","Q1 '24","Q2 '24","Q3 '24","Q4 '24"],
+    growth:  [null, 5.2, 8.1, 12.4, 3.8, 6.9, 11.2, 14.7]
+  },
+  discount: {
+    labels: ["0%","5%","10%","15%","20%"],
+    margin: [52.3, 48.1, 43.7, 38.2, 31.9],
+    volume: [800, 500, 400, 200, 100]
+  },
+  reps: [
+    { rank:1, name:"Alice Chen",    region:"North", revenue:310000, orders:148, deal:2095, margin:52.1 },
+    { rank:2, name:"David Kim",     region:"South", revenue:285000, orders:136, deal:2096, margin:49.8 },
+    { rank:3, name:"Grace Patel",   region:"East",  revenue:261000, orders:127, deal:2055, margin:48.3 },
+    { rank:4, name:"Henry Zhou",    region:"East",  revenue:244000, orders:120, deal:2033, margin:47.1 },
+    { rank:5, name:"Carol White",   region:"North", revenue:228000, orders:115, deal:1983, margin:45.9 },
+    { rank:6, name:"Bob Martinez",  region:"South", revenue:215000, orders:108, deal:1991, margin:44.7 },
+    { rank:7, name:"Frank Lee",     region:"South", revenue:198000, orders:99,  deal:2000, margin:43.5 },
+    { rank:8, name:"Eva Brown",     region:"South", revenue:182000, orders:94,  deal:1936, margin:42.3 },
+    { rank:9, name:"Iris Singh",    region:"East",  revenue:175000, orders:89,  deal:1966, margin:41.2 },
+    { rank:10,name:"James Wilson",  region:"West",  revenue:168000, orders:85,  deal:1976, margin:40.8 },
+  ]
+};
+
+// ── CHART DEFAULTS ────────────────────────────────────────────────────────────
+Chart.defaults.color = "#94A3B8";
+Chart.defaults.font.family = "'DM Mono', monospace";
+Chart.defaults.font.size = 11;
+
+const ACCENT = "#38BDF8", GREEN = "#34D399", GOLD = "#FBBF24",
+      RED = "#F87171", PURPLE = "#A78BFA", ORANGE = "#FB923C";
+
+const gridOpts = {
+  color: "rgba(30,58,95,0.6)", drawBorder: false
+};
+
+// ── 1. TREND CHART ────────────────────────────────────────────────────────────
+const trendCtx = document.getElementById("trendChart").getContext("2d");
+const trendGrad = trendCtx.createLinearGradient(0, 0, 0, 280);
+trendGrad.addColorStop(0, "rgba(56,189,248,0.3)");
+trendGrad.addColorStop(1, "rgba(56,189,248,0)");
+
+const trendChart = new Chart(trendCtx, {
+  type: "line",
+  data: {
+    labels: rawData.monthly.labels,
+    datasets: [
+      { label: "Actual Revenue", data: rawData.monthly.actual,
+        borderColor: ACCENT, backgroundColor: trendGrad,
+        tension: 0.4, fill: true, pointRadius: 3, pointHoverRadius: 6,
+        borderWidth: 2.5 },
+      { label: "Target", data: rawData.monthly.target,
+        borderColor: GOLD, backgroundColor: "transparent",
+        tension: 0.4, borderDash: [6,4], pointRadius: 0,
+        borderWidth: 2 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: true,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { position: "top", labels: { usePointStyle: true, padding: 16 } },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: $${(ctx.raw/1000).toFixed(0)}K`
+        }
+      }
+    },
+    scales: {
+      x: { grid: gridOpts, ticks: { maxRotation: 45, maxTicksLimit: 12 } },
+      y: { grid: gridOpts, ticks: { callback: v => `$${v/1000}K` } }
+    }
+  }
+});
+
+// ── 2. DONUT ──────────────────────────────────────────────────────────────────
+const donutColors = [ACCENT, PURPLE, GREEN, GOLD, RED, ORANGE,
+                     "#E879F9","#34D399","#60A5FA","#A78BFA"];
+new Chart(document.getElementById("donutChart"), {
+  type: "doughnut",
+  data: {
+    labels: rawData.categories.labels,
+    datasets: [{ data: rawData.categories.data,
+                 backgroundColor: donutColors,
+                 borderColor: "#111D35", borderWidth: 3,
+                 hoverOffset: 8 }]
+  },
+  options: {
+    responsive: true, cutout: "62%",
+    plugins: {
+      legend: { position: "right", labels: { padding: 12, usePointStyle: true, font: { size: 10 } } },
+      tooltip: { callbacks: { label: ctx => ` $${(ctx.raw/1000).toFixed(0)}K` } }
+    }
+  }
+});
+
+// ── 3. REGIONAL BAR ───────────────────────────────────────────────────────────
+new Chart(document.getElementById("regionChart"), {
+  type: "bar",
+  data: {
+    labels: rawData.regions.labels,
+    datasets: [
+      { label: "Revenue", data: rawData.regions.revenue,
+        backgroundColor: ACCENT+"99", borderColor: ACCENT, borderWidth: 1.5,
+        borderRadius: 6 },
+      { label: "Profit", data: rawData.regions.profit,
+        backgroundColor: GREEN+"99",  borderColor: GREEN,  borderWidth: 1.5,
+        borderRadius: 6 }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: "top", labels: { usePointStyle: true } },
+               tooltip: { callbacks: { label: ctx => ` $${(ctx.raw/1000).toFixed(0)}K` } } },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: gridOpts, ticks: { callback: v => `$${v/1000}K` } }
+    }
+  }
+});
+
+// ── 4. TOP PRODUCTS ───────────────────────────────────────────────────────────
+new Chart(document.getElementById("productChart"), {
+  type: "bar",
+  data: {
+    labels: rawData.products.labels,
+    datasets: [{ label: "Revenue", data: rawData.products.revenue,
+                 backgroundColor: [ACCENT,PURPLE,GREEN,GOLD,RED,ORANGE].map(c=>c+"CC"),
+                 borderColor:     [ACCENT,PURPLE,GREEN,GOLD,RED,ORANGE],
+                 borderWidth: 1.5, borderRadius: 6 }]
+  },
+  options: {
+    indexAxis: "y", responsive: true,
+    plugins: { legend: { display: false },
+               tooltip: { callbacks: { label: ctx => ` $${(ctx.raw/1000).toFixed(0)}K` } } },
+    scales: {
+      x: { grid: gridOpts, ticks: { callback: v => `$${v/1000}K` } },
+      y: { grid: { display: false } }
+    }
+  }
+});
+
+// ── 5. QoQ GROWTH ────────────────────────────────────────────────────────────
+new Chart(document.getElementById("qoqChart"), {
+  type: "bar",
+  data: {
+    labels: rawData.qoq.labels,
+    datasets: [{
+      label: "QoQ Growth %",
+      data: rawData.qoq.growth,
+      backgroundColor: rawData.qoq.growth.map(v =>
+        v === null ? "transparent" : v > 10 ? GREEN+"CC" : v > 5 ? GOLD+"CC" : ACCENT+"CC"),
+      borderColor: rawData.qoq.growth.map(v =>
+        v === null ? "transparent" : v > 10 ? GREEN : v > 5 ? GOLD : ACCENT),
+      borderWidth: 1.5, borderRadius: 6
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false },
+               tooltip: { callbacks: { label: ctx => ctx.raw === null ? "Baseline" : ` ${ctx.raw}%` } } },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: gridOpts, ticks: { callback: v => `${v}%` } }
+    }
+  }
+});
+
+// ── 6. DISCOUNT SCATTER ────────────────────────────────────────────────────────
+new Chart(document.getElementById("discountChart"), {
+  type: "bar",
+  data: {
+    labels: rawData.discount.labels,
+    datasets: [
+      { label: "Profit Margin %", data: rawData.discount.margin,
+        backgroundColor: rawData.discount.margin.map(v =>
+          v > 50 ? GREEN+"CC" : v > 40 ? GOLD+"CC" : RED+"CC"),
+        borderRadius: 6, borderWidth: 1.5,
+        borderColor: rawData.discount.margin.map(v =>
+          v > 50 ? GREEN : v > 40 ? GOLD : RED) }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` Margin: ${ctx.raw}%` } }
+    },
+    scales: {
+      x: { grid: { display: false }, title: { display: true, text: "Discount Level" } },
+      y: { grid: gridOpts, ticks: { callback: v => `${v}%` },
+           title: { display: true, text: "Profit Margin %" } }
+    }
+  }
+});
+
+// ── TABLE ─────────────────────────────────────────────────────────────────────
+function renderTable(data) {
+  const tbody = document.getElementById("repTable");
+  tbody.innerHTML = data.map(r => {
+    const status = r.margin > 50 ? ["🟢 Exceeding","tag-green"]
+                 : r.margin > 43 ? ["🟡 On Track", "tag-gold"]
+                 : ["🔴 At Risk",   "tag-red"];
+    return `<tr>
+      <td><strong>#${r.rank}</strong></td>
+      <td>${r.name}</td>
+      <td>${r.region}</td>
+      <td><strong>$${(r.revenue/1000).toFixed(0)}K</strong></td>
+      <td>${r.orders}</td>
+      <td>$${r.deal.toLocaleString()}</td>
+      <td>${r.margin}%</td>
+      <td><span class="tag ${status[1]}">${status[0]}</span></td>
+    </tr>`;
+  }).join("");
+}
+renderTable(rawData.reps);
+
+// ── FILTER (cosmetic toggle for demo) ────────────────────────────────────────
+function applyFilters() {
+  const y = document.getElementById("filterYear").value;
+  const r = document.getElementById("filterRegion").value;
+  const c = document.getElementById("filterCategory").value;
+
+  // Slice the trend chart based on year filter
+  let labels = rawData.monthly.labels;
+  let actual  = rawData.monthly.actual;
+  let target  = rawData.monthly.target;
+
+  if (y === "2023") {
+    labels = labels.slice(0, 12); actual = actual.slice(0, 12); target = target.slice(0, 12);
+  } else if (y === "2024") {
+    labels = labels.slice(12);    actual = actual.slice(12);    target = target.slice(12);
+  }
+
+  trendChart.data.labels = labels;
+  trendChart.data.datasets[0].data = actual;
+  trendChart.data.datasets[1].data = target;
+  trendChart.update();
+
+  // Update KPIs dynamically
+  const totalRev = actual.reduce((a,b)=>a+b,0);
+  document.getElementById("kpiRevenue").textContent = `$${(totalRev/1e6).toFixed(1)}M`;
+  document.getElementById("kpiProfit").textContent  = `$${(totalRev*.45/1e6).toFixed(1)}M`;
+  document.getElementById("kpiOrders").textContent  = y === "all" ? "2,000" : y === "2023" ? "1,012" : "988";
+}
+</script>
+</body>
+</html>
